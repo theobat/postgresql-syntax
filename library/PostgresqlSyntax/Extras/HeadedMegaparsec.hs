@@ -8,6 +8,7 @@ import Control.Applicative.Combinators hiding (some)
 import Control.Applicative.Combinators.NonEmpty
 import qualified Data.Text as Text
 import HeadedMegaparsec hiding (string)
+import PostgresqlSyntax.Extras.Error (errorBundlePrettyStruct)
 import PostgresqlSyntax.Prelude hiding (bit, expr, filter, head, many, option, some, sortBy, tail, try)
 import Text.Megaparsec (Parsec, Stream, TraversableStream, VisualStream)
 import qualified Text.Megaparsec as Megaparsec
@@ -23,13 +24,11 @@ run :: (Ord err, VisualStream strm, TraversableStream strm, Megaparsec.ShowError
 run p = first Megaparsec.errorBundlePretty . runParser p
 
 -- |
--- Run the parser but returns all the error messages separated, along with their offset in the parsed message.
-runParserWithErrorPos :: (Show (Megaparsec.Token strm), Show e, Ord e, VisualStream strm, TraversableStream strm, Megaparsec.ShowErrorComponent e) => HeadedParsec e strm a -> strm -> Either (NonEmpty (Int, String)) a
+-- Run the parser but returns all the error messages separated, along with their position ('Megaparsec.SourcePos') in the parsed message.
+runParserWithErrorPos :: (Show (Megaparsec.Token strm), Show e, Ord e, VisualStream strm, TraversableStream strm, Megaparsec.ShowErrorComponent e) => HeadedParsec e strm a -> strm -> Either (NonEmpty (Megaparsec.SourcePos, String)) a
 runParserWithErrorPos p s = case runParser p s of
-  Left err -> Left (extractor <$> Megaparsec.bundleErrors err)
+  Left err -> Left (errorBundlePrettyStruct err)
   Right v -> Right v
-  where
-    extractor x = (Megaparsec.errorOffset x, Megaparsec.parseErrorPretty x)
 
 runParser :: (Ord e, VisualStream strm, TraversableStream strm) => HeadedParsec e strm a -> strm -> Either (Megaparsec.ParseErrorBundle strm e) a
 runParser p = Megaparsec.runParser (toParsec p <* Megaparsec.eof) ""

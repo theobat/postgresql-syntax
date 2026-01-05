@@ -75,6 +75,7 @@ library
 
   other-modules:
     PostgresqlSyntax.CharSet
+    PostgresqlSyntax.Extras.Error
     PostgresqlSyntax.Extras.HeadedMegaparsec
     PostgresqlSyntax.Extras.NonEmpty
     PostgresqlSyntax.Extras.TextBuilder
@@ -82,12 +83,17 @@ library
     PostgresqlSyntax.Prelude
 
   build-depends:
+    -- megaparsec 9.8 introduces a breaking change which completely modifies the behavior of error reporting
+    -- (see : https://github.com/mrkkrp/megaparsec/issues/412 and https://github.com/mrkkrp/megaparsec/pull/599/changes)
+    -- bumping to 9.8 requires a careful attention to HeadedMegaparsec <|> usage to revert to pre-9.8 behavior (which is the one we want).
     base >=4.12 && <5,
     bytestring >=0.10 && <0.13,
     case-insensitive >=1.2.1 && <2,
+    containers >=0.4 && <1,
     hashable >=1.3.5 && <2,
     headed-megaparsec >=0.2.0.1 && <0.3,
-    megaparsec >=9.2 && <10,
+    megaparsec >=9.2 && <9.8,
+    mtl >=1.21.2 && <3,
     parser-combinators >=1.3 && <1.4,
     text >=1 && <3,
     text-builder >=1 && <1.1,
@@ -100,6 +106,7 @@ test-suite tasty-test
   main-is: Main.hs
   ghc-options: -threaded
   build-depends:
+    megaparsec >=9.2 && <9.8,
     postgresql-syntax,
     rerebase <2,
     tasty >=1.2.3 && <2,

@@ -30,9 +30,11 @@ module PostgresqlSyntax.Parsing where
 import Control.Applicative.Combinators hiding (some)
 import Control.Applicative.Combinators.NonEmpty
 import qualified Data.HashSet as HashSet
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
 import HeadedMegaparsec hiding (string)
 import PostgresqlSyntax.Ast
+import PostgresqlSyntax.Extras.Error (chunkFailure)
 import PostgresqlSyntax.Extras.HeadedMegaparsec hiding (run)
 import qualified PostgresqlSyntax.Extras.HeadedMegaparsec as Extras
 import qualified PostgresqlSyntax.Extras.NonEmpty as NonEmpty
@@ -54,7 +56,7 @@ type Parser = HeadedParsec Void Text
 run :: Parser a -> Text -> Either String a
 run = Extras.run
 
-runWithPosError :: Parser a -> Text -> Either (NonEmpty (Int, String)) a
+runWithPosError :: Parser a -> Text -> Either (NonEmpty (Megaparsec.SourcePos, String)) a
 runWithPosError = Extras.runParserWithErrorPos
 
 -- * Helpers
@@ -2001,7 +2003,12 @@ anyKeyword = parse
     return (Text.toLower (Text.cons firstChar remainder))
 
 -- | Expected keyword
-keyword a = mfilter (a ==) anyKeyword
+keyword :: (Megaparsec.Tokens s ~ Text, Megaparsec.Token s ~ Char, Ord e, Megaparsec.Stream s) => Text -> HeadedParsec e s Text
+keyword expectedKeyword = do
+  parsedTxt <- anyKeyword
+  if expectedKeyword == parsedTxt
+    then pure parsedTxt
+    else parse $ chunkFailure expectedKeyword parsedTxt
 
 -- |
 -- Consume a keyphrase, ignoring case and types of spaces between words.

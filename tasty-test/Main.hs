@@ -5,6 +5,7 @@ import qualified Data.Text as Text
 import qualified PostgresqlSyntax.Parsing as Parsing
 import Test.Tasty
 import Test.Tasty.HUnit
+import Text.Megaparsec.Pos (sourcePosPretty)
 import Prelude hiding (assert)
 
 main :: IO ()
@@ -59,14 +60,40 @@ main =
                       "jsonb"
                     ]
                 ],
+        testGroup "Errors one"
+          $ let testParserOnAllInputs parserName parser inputs res =
+                  testCase parserName
+                    $ forM_ inputs
+                    $ \input -> case Parsing.run parser input of
+                      Left err -> show err @?= res
+                      Right _ -> return ()
+             in [ testParserOnAllInputs
+                    "preparableStmt"
+                    Parsing.preparableStmt
+                    [ "SELECT id FROM as"
+                    ]
+                    "\"1:18:\\n  |\\n1 | SELECT id FROM as\\n  |                  ^\\nReserved keyword \\\"as\\\" used as an identifier. If that's what you intend, you have to wrap it in double quotes.\\n\""
+                ],
         testGroup "Error reporting"
           $ let testParserOnAllInputs parserName parser inputs res =
                   testCase parserName
                     $ forM_ inputs
                     $ \input -> case Parsing.runWithPosError parser input of
-                      Left err -> show (NonEmpty.head err) @?= res
+                      Left err ->
+                        let formattedErrList = (\(p, m) -> sourcePosPretty p <> " " <> m) <$> err
+                         in res `elem` formattedErrList @? "Missing error message " <> res <> " in " <> show formattedErrList
                       Right _ -> return ()
              in [ testParserOnAllInputs
+                    "Typo in FROM keyword"
+                    Parsing.preparableStmt
+                    ["select u.id :: int8 fom auth.user as u"]
+                    "1:24 unexpected space\nexpecting end of input\n",
+                  testParserOnAllInputs
+                    "Typo in select keyword"
+                    Parsing.preparableStmt
+                    ["SLECT id FROM qsdqsd"]
+                    "1:6 unexpected \"slect \"\nexpecting \"call \", \"delete \", \"insert \", \"select \", \"table \", \"update \", \"values \", or \"with \"\n",
+                  testParserOnAllInputs
                     "Typo in FROM keyword"
                     Parsing.preparableStmt
                     [ "select i :: int8 fom auth.user as u\n\
@@ -75,13 +102,13 @@ main =
                       \inner join edgenode.provider_branch as b\n\
                       \on b.provider_fk = p.provider_id"
                     ]
-                    "(20,\"offset=20:\\nunexpected space\\nexpecting end of input\\n\")",
+                    "1:21 unexpected space\nexpecting end of input\n",
                   testParserOnAllInputs
                     "Typo in NOT keyword"
                     Parsing.preparableStmt
                     [ "select i :: int8 from auth.user as u\n\
                       \WHERE u.id IS NO NULL && TRUE"
                     ]
-                    "(53,\"offset=53:\\nexpecting white space\\n\")"
+                    "2:17 unexpected \"no \"\nexpecting \"distinct \", \"document \", \"false \", \"null \", \"of \", \"true \", \"unknown \", or white space\n"
                 ]
       ]
